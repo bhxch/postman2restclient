@@ -1,0 +1,442 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-theme="light">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title data-i18n="title">API 格式转换工具</title>
+  <style>
+    :root {
+      --bg-color: #ffffff;
+      --text-color: #333333;
+      --primary-color: #2196F3;
+      --button-hover: #1976D2;
+      --border-color: #dddddd;
+      --panel-bg: #ffffff;
+    }
+
+    [data-theme="dark"] {
+      --bg-color: #1a1a1a;
+      --text-color: #e0e0e0;
+      --primary-color: #1d3e58;
+      --button-hover: #2b5a7e;
+      --border-color: #424242;
+      --panel-bg: #2d2d2d;
+    }
+
+    body {
+      font-family: system-ui, sans-serif;
+      margin: 0;
+      padding: 20px;
+      background-color: var(--bg-color);
+      color: var(--text-color);
+      transition: background-color 0.3s, color 0.3s;
+    }
+
+    .container {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
+      gap: 30px;
+      max-width: 1200px;
+      margin: 0 auto;
+    }
+
+    .control-bar {
+      display: flex;
+      justify-content: flex-end;
+      gap: 15px;
+      margin-bottom: 20px;
+      max-width: 1200px;
+      margin: 0 auto 20px;
+    }
+
+    .panel {
+      background: var(--panel-bg);
+      border-radius: 8px;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+      padding: 20px;
+      border: 1px solid var(--border-color);
+      position: relative;
+    }
+
+    .drag-over {
+      border-color: var(--primary-color) !important;
+      box-shadow: 0 0 10px rgba(33, 150, 243, 0.3);
+    }
+
+    h3 {
+      margin-top: 0;
+      padding-bottom: 10px;
+      border-bottom: 2px solid var(--primary-color);
+    }
+
+    textarea {
+      width: 100%;
+      height: 400px;
+      padding: 15px;
+      border: 1px solid var(--border-color);
+      border-radius: 4px;
+      font-family: monospace;
+      resize: vertical;
+      margin: 10px 0;
+      box-sizing: border-box;
+      background-color: var(--panel-bg);
+      color: var(--text-color);
+    }
+
+    .button-group {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+      margin-top: 15px;
+    }
+
+    button {
+      background-color: var(--primary-color);
+      color: white;
+      border: none;
+      padding: 10px 20px;
+      border-radius: 4px;
+      cursor: pointer;
+      transition: all 0.3s;
+      font-size: 14px;
+    }
+
+    button:hover {
+      background-color: var(--button-hover);
+      transform: translateY(-1px);
+    }
+
+    input[type="file"] {
+      display: none;
+    }
+
+    .file-upload {
+      background-color: #728A7A;
+    }
+
+    @media (max-width: 768px) {
+      .container {
+        grid-template-columns: 1fr;
+      }
+
+      textarea {
+        height: 300px;
+      }
+    }
+  </style>
+</head>
+
+<body>
+  <div class="control-bar">
+    <button id="themeToggle" onclick="toggleTheme()" data-i18n="theme" title="Toggle Theme"></button>
+    <button id="langToggle" onclick="toggleLanguage()">EN/中文</button>
+  </div>
+
+  <div class="container">
+    <!-- Postman 面板 -->
+    <div class="panel" id="postmanPanel">
+      <h3 data-i18n="postmanTitle"></h3>
+      <textarea id="postmanInput" placeholder="Enter Postman JSON here"></textarea>
+      <div class="button-group">
+        <button onclick="clearTextarea('postmanInput')" data-i18n="clear" title="Clear"></button>
+        <button onclick="downloadContent('postmanInput', 'application/json', 'collection.json')"
+          data-i18n="downloadJson" title="Download JSON"></button>
+        <button class="file-upload" onclick="document.getElementById('postmanFile').click()" data-i18n="uploadFile"
+          title="Upload File"></button>
+        <button onclick="convertToRestClient()" data-i18n="convertToRest" title="Convert to REST"></button>
+      </div>
+      <input type="file" id="postmanFile" accept=".json" onchange="handleFileUpload('postmanInput', this)">
+    </div>
+
+    <!-- REST Client 面板 -->
+    <div class="panel" id="restPanel">
+      <h3 data-i18n="restTitle"></h3>
+      <textarea id="restClientInput" placeholder="Enter REST Client data here"></textarea>
+      <div class="button-group">
+        <button onclick="clearTextarea('restClientInput')" data-i18n="clear" title="Clear"></button>
+        <button onclick="downloadContent('restClientInput', 'text/plain', 'api.http')" data-i18n="downloadHttp"
+          title="Download .http"></button>
+        <button class="file-upload" onclick="document.getElementById('restFile').click()" data-i18n="uploadFile"
+          title="Upload File"></button>
+        <button onclick="convertToPostman()" data-i18n="convertToPostman" title="Convert to Postman"></button>
+      </div>
+      <input type="file" id="restFile" accept=".http,.rest" onchange="handleFileUpload('restClientInput', this)">
+    </div>
+  </div>
+
+  <div class="test-case">
+    <h3 data-i18n="testCase"></h3>
+    <div class="button-group">
+      <button onclick="loadSamplePostman()" data-i18n="loadPostman" title="Load Postman Sample"></button>
+      <button onclick="loadSampleRestClient()" data-i18n="loadRest" title="Load REST Client Sample"></button>
+    </div>
+  </div>
+
+  <script>
+    // 国际化配置
+    const translations = {
+      'en': {
+        'title': 'API Format Converter',
+        'theme': 'Toggle Theme',
+        'postmanTitle': 'Postman Collection (JSON)',
+        'restTitle': 'REST Client (.http)',
+        'clear': 'Clear',
+        'downloadJson': 'Download JSON',
+        'downloadHttp': 'Download .http',
+        'uploadFile': 'Upload File',
+        'convertToRest': '→ Convert to REST →',
+        'convertToPostman': '← Convert to Postman ←',
+        'testCase': 'Test Case',
+        'loadPostman': 'Load Postman Sample',
+        'loadRest': 'Load REST Client Sample'
+      },
+      'zh': {
+        'title': 'API 格式转换工具',
+        'theme': '切换主题',
+        'postmanTitle': 'Postman 集合 (JSON)',
+        'restTitle': 'REST Client (.http)',
+        'clear': '清空',
+        'downloadJson': '下载 JSON',
+        'downloadHttp': '下载 .http',
+        'uploadFile': '上传文件',
+        'convertToRest': '→ 转换为 REST →',
+        'convertToPostman': '← 转换为 Postman ←',
+        'testCase': '测试用例',
+        'loadPostman': '加载 Postman 样例',
+        'loadRest': '加载 REST Client 样例'
+      }
+    };
+
+    // 初始化设置
+    let currentLang = localStorage.getItem('lang') || (navigator.language.startsWith('zh') ? 'zh' : 'en');
+    let currentTheme = localStorage.getItem('theme') || (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
+
+    // 应用初始设置
+    function applyInitialSettings() {
+      document.documentElement.setAttribute('data-theme', currentTheme);
+      document.getElementById('themeToggle').textContent = currentTheme === 'dark' ? '🌙' : '☀️';
+      updateTranslations();
+    }
+
+    // 切换语言
+    function toggleLanguage() {
+      currentLang = currentLang === 'en' ? 'zh' : 'en';
+      localStorage.setItem('lang', currentLang);
+      updateTranslations();
+    }
+
+    // 更新界面文字
+    function updateTranslations() {
+      document.querySelectorAll('[data-i18n]').forEach(el => {
+        const key = el.getAttribute('data-i18n');
+        el.textContent = translations[currentLang][key];
+      });
+    }
+
+    // 切换主题
+    function toggleTheme() {
+      currentTheme = currentTheme === 'light' ? 'dark' : 'light';
+      localStorage.setItem('theme', currentTheme);
+      document.documentElement.setAttribute('data-theme', currentTheme);
+      document.getElementById('themeToggle').textContent = currentTheme === 'dark' ? '🌙' : '☀️';
+    }
+
+    // 拖拽上传处理
+    function setupDragDrop(panelId, textareaId) {
+      const panel = document.getElementById(panelId);
+      const textarea = document.getElementById(textareaId);
+
+      panel.addEventListener('dragover', (e) => {
+        e.preventDefault();
+        panel.classList.add('drag-over');
+      });
+
+      panel.addEventListener('dragleave', () => {
+        panel.classList.remove('drag-over');
+      });
+
+      panel.addEventListener('drop', (e) => {
+        e.preventDefault();
+        panel.classList.remove('drag-over');
+
+        const files = e.dataTransfer.files;
+        if (files.length > 0) {
+          handleFile(textarea, files[0]);
+        }
+      });
+    }
+
+    // 处理文件上传
+    async function handleFile(textarea, file) {
+      const content = await file.text();
+      textarea.value = content;
+    }
+
+    // 初始化拖拽上传
+    setupDragDrop('postmanPanel', 'postmanInput');
+    setupDragDrop('restPanel', 'restClientInput');
+
+    // 通用文件上传处理
+    function handleFileUpload(targetId, fileInput) {
+      const file = fileInput.files[0];
+      if (!file) return;
+
+      handleFile(document.getElementById(targetId), file);
+      fileInput.value = '';
+    }
+    // 通用清空功能
+    function clearTextarea(textareaId) {
+      document.getElementById(textareaId).value = '';
+      // if (textareaId === 'postmanInput') {
+      //   document.getElementById('restClientInput').value = '';
+      // }
+    }
+
+    // 通用下载功能
+    function downloadContent(sourceId, mimeType, fileName) {
+      const content = document.getElementById(sourceId).value;
+      if (!content.trim()) {
+        alert('内容为空！');
+        return;
+      }
+
+      const blob = new Blob([content], { type: mimeType });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = fileName;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    }
+
+    // 示例 Postman 数据
+    function loadSamplePostman() {
+      clearTextarea('postmanInput');
+      const sample = {
+        "info": { "name": "Sample API" },
+        "item": [{
+          "name": "Get User",
+          "request": {
+            "method": "GET",
+            "url": { "raw": "https://api.example.com/users/1" },
+            "header": [{ "key": "Accept", "value": "application/json" }]
+          }
+        }, {
+          "name": "Create User",
+          "request": {
+            "method": "POST",
+            "url": { "raw": "https://api.example.com/users" },
+            "body": { "mode": "raw", "raw": JSON.stringify({ "name": "John" }) }
+          }
+        }]
+      };
+      document.getElementById('postmanInput').value = JSON.stringify(sample, null, 2);
+    }
+
+    // 示例 REST Client 数据
+    function loadSampleRestClient() {
+      clearTextarea('restClientInput');
+      const sample = `
+### Get User
+GET https://api.example.com/users/1
+Accept: application/json
+
+### Create User
+POST https://api.example.com/users
+Content-Type: application/json
+
+{
+  "name": "John"
+}`;
+      document.getElementById('restClientInput').value = sample.trim();
+    }
+
+    // 转换核心逻辑：Postman → REST Client
+    function convertToRestClient() {
+      try {
+        clearTextarea('restClientInput');
+        const postmanJson = JSON.parse(document.getElementById('postmanInput').value);
+        let httpContent = '';
+
+        const processItems = (items) => {
+          items.forEach(item => {
+            if (item.request) {
+              // 构建请求头
+              const headers = item.request.header?.map(h => `${h.key}: ${h.value}`).join('\n') || '';
+
+              // 构建 HTTP 内容
+              httpContent += `### ${item.name}\n`;
+              httpContent += `${item.request.method} ${item.request.url.raw}\n`;
+              httpContent += `${headers}\n`;
+
+              if (item.request.body?.raw) {
+                httpContent += '\n' + item.request.body.raw + '\n\n';
+              }
+            }
+            if (item.item) processItems(item.item);
+          });
+        };
+
+        processItems(postmanJson.item || []);
+        document.getElementById('restClientInput').value = httpContent.trim();
+      } catch (e) {
+        alert('Error parsing Postman JSON: ' + e.message);
+      }
+    }
+
+    // 转换核心逻辑：REST Client → Postman
+    function convertToPostman() {
+      clearTextarea('postmanInput');
+      const httpContent = document.getElementById('restClientInput').value;
+      const collection = {
+        info: { name: "Converted Collection" },
+        item: []
+      };
+
+      // 解析 HTTP 内容
+      const requests = httpContent.split(/###+/g).map(block => block.trim()).filter(Boolean);
+
+      requests.forEach(block => {
+        const lines = block.split('\n');
+        const name = lines[0].trim() || 'Unnamed Request';
+        const [method, url] = lines[1].split(' ');
+
+        const headers = [];
+        let body = '';
+        let isBody = false;
+
+        for (let line of lines.slice(2)) {
+          if (!line.trim()) {
+            isBody = true;
+            continue;
+          }
+          if (!isBody) {
+            const [key, ...values] = line.split(':');
+            headers.push({ key: key.trim(), value: values.join(':').trim() });
+          } else {
+            body += line + '\n';
+          }
+        }
+
+        collection.item.push({
+          name,
+          request: {
+            method,
+            url: { raw: url },
+            header: headers,
+            body: body.trim() ? { mode: "raw", raw: body.trim() } : undefined
+          }
+        });
+      });
+
+      document.getElementById('postmanInput').value = JSON.stringify(collection, null, 2);
+    }
+    // 初始化页面
+    applyInitialSettings();
+  </script>
+</body>
+
+</html>
